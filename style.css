@@ -95,3 +95,201 @@ label { color: var(--text-muted); font-size: 0.9rem; font-weight: 600; margin-le
     background: rgba(255,255,255,0.1);
     transform: scale(1.02);
 }
+
+/* --- TODO DETAY MODALI STİLLERİ --- */
+/* --- DÜZELTME: KUTU ÇAKIŞMALARI İÇİN --- */
+
+/* Liste Konteyner */
+.todo-detail-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px; /* Maddeler arası boşluk */
+    padding: 5px;
+    overflow-y: auto;
+    max-height: 60vh;
+}
+
+/* Akordeon Kartı */
+.todo-accordion-item {
+    background: rgba(30, 30, 46, 0.6);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    overflow: visible; /* Dropdown taşarsa kesmesin */
+    display: flex;
+    flex-direction: column;
+}
+
+.todo-accordion-header {
+    padding: 15px; /* İç boşluğu artırdık */
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: rgba(0,0,0,0.2);
+    min-height: 50px;
+}
+
+/* Başlık Kısmı (Tıklanabilir Alan) */
+.todo-accordion-header {
+    padding: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    background: rgba(255,255,255,0.02);
+    transition: 0.2s;
+    min-height: 50px;
+}
+.todo-accordion-header:hover { background: rgba(255,255,255,0.05); }
+
+/* Sol taraf (İkon + Başlık + Durum) */
+.todo-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0; /* Taşma önleyici */
+    padding-right: 10px;
+}
+
+/* İçerik Gövdesi (Gizli Kısım) */
+.todo-accordion-body {
+    padding: 15px;
+    background: rgba(0,0,0,0.3);
+    border-top: 1px solid rgba(255,255,255,0.05);
+    display: none;
+    flex-direction: column;
+    gap: 15px;
+}
+.todo-accordion-body.open { display: flex; animation: fadeIn 0.3s; }
+
+/* 2. Kart ve Modal İçindeki Metin Taşması (Flex Fix) */
+.todo-row-layout {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* İki uca yasla */
+    gap: 10px;
+    width: 100%;
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    padding-bottom: 5px;
+}
+
+/* Sol taraf (İkon + Metin) */
+.todo-left-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1; /* Kalan tüm boşluğu kapla */
+    min-width: 0; /* Metin taşmasını engellemek için KRİTİK kod */
+}
+
+/* Metin özellikleri */
+.todo-text-truncate {
+    white-space: nowrap;      /* Alt satıra geçme */
+    overflow: hidden;         /* Taşan kısmı gizle */
+    text-overflow: ellipsis;  /* Üç nokta (...) koy */
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+/* Dropdown (Select) Kutusunun Boyutu */
+.todo-select-box {
+    width: 100px; /* Sabit genişlik */
+    flex-shrink: 0; /* Asla büzüşme */
+    padding: 2px 5px;
+    font-size: 0.75rem;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 4px;
+    color: white;
+}
+
+/* Açıklama Alanı */
+.todo-desc-input {
+    width: 100%;
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #e0e0e0;
+    padding: 12px;
+    border-radius: 8px;
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+}
+.todo-desc-input:focus { border-color: var(--primary); outline: none; }
+
+/* Alt Aksiyon Barı (Butonlar) */
+.todo-actions-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+.action-group-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Durum Select Kutusu */
+.status-select-stylish {
+    background: #1a1a2e;
+    color: white;
+    border: 1px solid rgba(255,255,255,0.2);
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    outline: none;
+}
+.status-select-stylish:hover { border-color: var(--primary); }
+
+/* Öncelik Butonu */
+.priority-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    transition: 0.2s;
+}
+.priority-chip:hover { background: rgba(255,255,255,0.1); color: white; }
+
+/* Metin Kısaltma */
+.text-truncate-custom {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+    font-size: 1rem;
+    color: white;
+}
+
+/* --- MODAL KATMAN VE SCROLL DÜZELTMESİ --- */
+
+/* Aciliyet Modalı her zaman en üstte olsun */
+#priorityModal {
+    z-index: 9999 !important; /* Diğer modalların (100) üstüne çıkar */
+    background: rgba(0,0,0,0.85); /* Arka planı biraz daha koyu yapalım ki öne çıksın */
+}
+
+/* Modal açıldığında arka plandaki sayfanın kaymasını engeller */
+body.modal-open {
+    overflow: hidden;
+}
+
+/* Hızlı Ekleme Modalı (En Üst Katman) */
+#quickAddTodoModal {
+    background: rgba(0,0,0,0.8); /* Arkayı biraz daha karart */
+    backdrop-filter: blur(5px);
+}

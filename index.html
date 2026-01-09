@@ -121,6 +121,34 @@
     </div>
 </div>
 
+<div class="modal-bg" id="todoDetailModal">
+    <div class="modal-card" style="max-width: 700px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h2 id="todoDetailTitle" style="color:var(--primary); margin:0;">Yapılacaklar Detayı</h2>
+            <button onclick="window.addTodoItemInDetail()" class="btn-small" style="background:var(--success); font-weight:bold;">+ Yeni Ekle</button>
+        </div>
+        
+        <div id="todoDetailList" class="todo-detail-list">
+            </div>
+
+        <button onclick="window.closeModal('todoDetailModal')" style="width:100%; margin-top:20px; background: #333; color: white; padding: 12px; border:none; border-radius:10px; cursor:pointer;">Kapat</button>
+    </div>
+</div>
+
+<div class="modal-bg" id="quickAddTodoModal" style="z-index: 10001;"> <div class="modal-card" style="max-width: 400px;">
+        <h3 style="color:var(--primary); margin-bottom: 15px;">Yeni Görev Ekle</h3>
+        
+        <input type="text" id="quickTodoTitle" placeholder="Görev Başlığı (Örn: Logo Tasarımı)" style="margin-bottom:10px;">
+        
+        <textarea id="quickTodoDesc" class="todo-desc-input" placeholder="Açıklama (İsteğe bağlı detay...)" style="min-height:80px; margin-bottom:20px;"></textarea>
+        
+        <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <button onclick="window.closeModal('quickAddTodoModal')" style="background:transparent; border:none; color:#888; cursor:pointer;">İptal</button>
+            <button onclick="window.submitNewTodo()" class="btn-primary" style="padding: 10px 25px;">Ekle</button>
+        </div>
+    </div>
+</div>
+
 <script type="module" src="app.js"></script>
 
 </body>

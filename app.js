@@ -34,9 +34,19 @@ window.setToday = (inputId) => {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById(inputId).value = today;
 };
-window.closeModal = (id) => document.getElementById(id).classList.remove('open');
+window.closeModal = (id) => {
+    document.getElementById(id).classList.remove('open');
+    
+    // Eğer sayfada başka açık modal kalmadıysa scroll kilidini kaldır
+    // (Aciliyet modalını kapatınca arkadaki Yapılacaklar modalı açık kalacağı için scroll kilitli kalmalı)
+    const openModals = document.querySelectorAll('.modal-bg.open');
+    if (openModals.length === 0) {
+        document.body.classList.remove('modal-open');
+    }
+};
 window.openProjectModal = () => {
     document.getElementById('projectModal').classList.add('open');
+    document.body.classList.add('modal-open');
     document.getElementById('projectForm').reset();
     document.getElementById('todoInputs').innerHTML = '';
     window.addTodoInput();
@@ -44,15 +54,19 @@ window.openProjectModal = () => {
 };
 window.addTodoInput = () => {
     const div = document.createElement('div');
-    div.style.display = 'flex'; div.style.gap = '10px'; div.style.marginBottom = '10px';
+    div.style.display = 'flex'; div.style.flexDirection = 'column'; div.style.gap = '5px'; div.style.marginBottom = '10px'; div.style.background = 'rgba(0,0,0,0.2)'; div.style.padding = '10px'; div.style.borderRadius = '8px';
+    
+    // HTML yapısını açıklama alanı olacak şekilde güncelledik
     div.innerHTML = `
-        <input type="text" class="new-todo-text" placeholder="Yapılacak iş..." style="margin:0; flex:1;">
-        <select class="new-todo-status" style="width:120px; margin:0; background-color: #1a1a2e;">
-            <option value="Bekliyor">Bekliyor</option>
-            <option value="Yapılıyor">Yapılıyor</option>
-            <option value="Bitti">Bitti</option>
-            <option value="Gerek Kalmadı">Gerek Kalmadı</option>
-        </select>
+        <div style="display:flex; gap:10px;">
+            <input type="text" class="new-todo-text" placeholder="Başlık (Örn: Login sayfası)" style="margin:0; flex:1;">
+            <select class="new-todo-status" style="width:120px; margin:0; background-color: #1a1a2e;">
+                <option value="Bekliyor">Bekliyor</option>
+                <option value="Yapılıyor">Yapılıyor</option>
+                <option value="Bitti">Bitti</option>
+            </select>
+        </div>
+        <input type="text" class="new-todo-desc" placeholder="Açıklama (İsteğe bağlı detay...)" style="margin:0; font-size:0.85rem; color:#aaa; background:rgba(255,255,255,0.02); border:none;">
     `;
     document.getElementById('todoInputs').appendChild(div);
 };
@@ -76,16 +90,22 @@ window.openPriorityModal = (projectId, index) => {
 window.setPriority = async (priorityValue) => {
     if (!targetTodoProjectId || targetTodoIndex === null) return;
     
-    // Modalı hemen kapat (Hız hissi için veritabanını beklemiyoruz)
+    // 1. Seçim Modalını Hemen Kapat
     window.closeModal('priorityModal');
 
+    // 2. Veriyi Hazırla
     const p = projects.find(x => x.id === targetTodoProjectId);
     const newTodos = [...p.todos];
     newTodos[targetTodoIndex].priority = priorityValue;
     
+    // 3. KRİTİK ADIM: Listeyi Hemen Güncelle (Veritabanını beklemeden)
+    // Bu satır sayesinde renk değişikliğini anında görürsün.
+    renderTodoDetailList({ ...p, todos: newTodos });
+    
+    // 4. Veritabanına Kaydet (Arka planda)
     await updateProjectInDb(targetTodoProjectId, { todos: newTodos });
     
-    // Değişkenleri sıfırla
+    // 5. Değişkenleri Sıfırla
     targetTodoProjectId = null;
     targetTodoIndex = null;
 };
@@ -98,12 +118,163 @@ window.toggleFinanceStatus = async (projectId, event) => {
 };
 
 // 5. Sonradan İş Ekleme
-window.addTodoItem = async (id) => {
-    const taskName = prompt("Yeni yapılacak işin adı nedir?");
-    if(!taskName) return;
-    const p = projects.find(x => x.id === id);
-    const newTodos = [...(p.todos || []), { text: taskName, status: "Bekliyor", priority: 'rahat' }];
-    await updateProjectInDb(id, { todos: newTodos });
+// --- TODO DETAY MODALI İŞLEMLERİ ---
+
+let detailModalProjectId = null; // Hangi projenin detayına bakıyoruz?
+
+window.openTodoDetailModal = (projectId) => {
+    detailModalProjectId = projectId;
+    const p = projects.find(x => x.id === projectId);
+    document.getElementById('todoDetailTitle').innerText = `${p.name} - Görevler`;
+    renderTodoDetailList(p);
+    document.getElementById('todoDetailModal').classList.add('open');
+    document.body.classList.add('modal-open');
+};
+
+function renderTodoDetailList(project) {
+    const container = document.getElementById('todoDetailList');
+    container.innerHTML = '';
+
+    // Sıralama mantığı (Bitenler sona)
+    let indexedTodos = (project.todos || []).map((t, index) => ({ ...t, originalIndex: index }));
+    indexedTodos.sort((a, b) => {
+        const isDoneA = a.status === 'Bitti' || a.status === 'Gerek Kalmadı';
+        const isDoneB = b.status === 'Bitti' || b.status === 'Gerek Kalmadı';
+        if (isDoneA === isDoneB) return 0;
+        return isDoneA ? 1 : -1;
+    });
+
+    if (indexedTodos.length === 0) {
+        container.innerHTML = '<div style="text-align:center; color:#666; padding:20px;">Liste boş.</div>';
+        return;
+    }
+
+    indexedTodos.forEach(t => {
+        const i = t.originalIndex;
+        const isDone = t.status === 'Bitti' || t.status === 'Gerek Kalmadı';
+        
+        // Öncelik Rengi ve Metni
+        let priorityColor = '#6c757d'; // Gri (Rahat)
+        let priorityLabel = 'Rahat';
+        
+        if (t.priority === 'normal') { priorityColor = '#00d26a'; priorityLabel = 'Normal'; } // Yeşil
+        if (t.priority === 'acil') { priorityColor = '#ee5253'; priorityLabel = 'Acil'; }   // Kırmızı
+
+        const item = document.createElement('div');
+        item.className = 'todo-accordion-item';
+        
+        // GÜNCELLENMİŞ VE DÜZENLENMİŞ HTML YAPISI
+        item.innerHTML = `
+            <div class="todo-accordion-header" onclick="window.toggleAccordion(this)">
+                <div class="todo-header-left">
+                    <i class="fa-solid fa-circle" style="color:${isDone ? 'var(--info)' : priorityColor}; font-size:0.7rem; flex-shrink:0;"></i>
+                    <span class="text-truncate-custom" style="${isDone ? 'text-decoration:line-through; opacity:0.5;' : ''}" title="${t.text}">${t.text}</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:0.75rem; color:var(--text-muted); background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:6px;">${t.status}</span>
+                    <i class="fa-solid fa-chevron-down" style="font-size:0.8rem; color:var(--text-muted);"></i>
+                </div>
+            </div>
+
+            <div class="todo-accordion-body">
+                <textarea class="todo-desc-input" placeholder="Bu görev için detaylı açıklama ekleyin..." onchange="window.saveTodoDesc('${project.id}', ${i}, this.value)">${t.desc || ''}</textarea>
+                
+                <div class="todo-actions-bar">
+                    <div class="action-group-left">
+                        <div class="priority-chip" onclick="window.openPriorityModal('${project.id}', ${i})">
+                            <i class="fa-solid fa-circle" style="color: ${priorityColor}; font-size: 0.6rem;"></i>
+                            <span>${priorityLabel}</span>
+                        </div>
+
+                        <select onchange="window.updateTodo('${project.id}', ${i}, this.value)" class="status-select-stylish">
+                            <option value="Bekliyor" ${t.status=='Bekliyor'?'selected':''}>Bekliyor</option>
+                            <option value="Yapılıyor" ${t.status=='Yapılıyor'?'selected':''}>Yapılıyor</option>
+                            <option value="Bitti" ${t.status=='Bitti'?'selected':''}>Bitti</option>
+                            <option value="Gerek Kalmadı" ${t.status=='Gerek Kalmadı'?'selected':''}>İptal</option>
+                        </select>
+                    </div>
+
+                    <button onclick="window.deleteTodoItem('${project.id}', ${i})" style="color:#ff6b6b; background:none; border:none; cursor:pointer; font-size:0.9rem; display:flex; align-items:center; gap:5px;">
+                        <i class="fa-solid fa-trash"></i> Sil
+                    </button>
+                </div>
+            </div>
+        `;
+        container.appendChild(item);
+    });
+}
+
+// 1. "Yeni Ekle" butonuna basınca Modalı aç
+window.addTodoItemInDetail = () => {
+    if(!detailModalProjectId) return;
+    
+    // Inputları temizle
+    document.getElementById('quickTodoTitle').value = '';
+    document.getElementById('quickTodoDesc').value = '';
+    
+    // Modalı aç
+    document.getElementById('quickAddTodoModal').classList.add('open');
+};
+
+// 2. Modaldaki "Ekle" butonuna basınca çalışır
+window.submitNewTodo = async () => {
+    const title = document.getElementById('quickTodoTitle').value;
+    const desc = document.getElementById('quickTodoDesc').value;
+
+    if(!title) { alert("Lütfen bir görev başlığı girin."); return; }
+
+    // A) Modalı Hemen Kapat
+    window.closeModal('quickAddTodoModal');
+
+    // B) Veriyi Hazırla
+    const p = projects.find(x => x.id === detailModalProjectId);
+    const newTodos = [...(p.todos || []), { 
+        text: title, 
+        desc: desc, 
+        status: "Bekliyor", 
+        priority: 'rahat' 
+    }];
+
+    // Bu satır sayesinde yeni maddeyi anında listede görürsün.
+    renderTodoDetailList({ ...p, todos: newTodos });
+
+    // D) Veritabanına Kaydet (Arka Planda)
+    await updateProjectInDb(detailModalProjectId, { todos: newTodos });
+};
+
+// Akordeon Aç/Kapa
+window.toggleAccordion = (header) => {
+    const body = header.nextElementSibling;
+    const icon = header.querySelector('.fa-chevron-down');
+    
+    // Diğerlerini kapat (İsteğe bağlı, şimdilik hepsini açık bırakabiliriz)
+    // document.querySelectorAll('.todo-accordion-body').forEach(b => b !== body && b.classList.remove('open'));
+
+    body.classList.toggle('open');
+    if(body.classList.contains('open')) {
+        icon.style.transform = "rotate(180deg)";
+    } else {
+        icon.style.transform = "rotate(0deg)";
+    }
+};
+
+// Açıklamayı Kaydet
+window.saveTodoDesc = async (projectId, index, val) => {
+    const p = projects.find(x => x.id === projectId);
+    const newTodos = [...p.todos];
+    newTodos[index].desc = val;
+    await updateProjectInDb(projectId, { todos: newTodos });
+};
+
+// Todo Silme
+window.deleteTodoItem = async (projectId, index) => {
+    if(!confirm("Bu görevi silmek istiyor musun?")) return;
+    const p = projects.find(x => x.id === projectId);
+    const newTodos = [...p.todos];
+    newTodos.splice(index, 1);
+    await updateProjectInDb(projectId, { todos: newTodos });
+    // Listeden anlık sil (Listener gelene kadar)
+    renderTodoDetailList({...p, todos: newTodos});
 };
 
 // --- CORE MANTIK ---
@@ -143,11 +314,14 @@ document.getElementById('projectForm').addEventListener('submit', async (e) => {
     }
 
     const todoItems = [];
-    document.querySelectorAll('#todoInputs > div').forEach(row => {
-        const txt = row.querySelector('.new-todo-text').value;
-        const stat = row.querySelector('.new-todo-status').value;
-        if(txt) todoItems.push({ text: txt, status: stat, priority: 'rahat' });
-    });
+        document.querySelectorAll('#todoInputs > div').forEach(row => {
+            const txt = row.querySelector('.new-todo-text').value;
+            const desc = row.querySelector('.new-todo-desc').value; // Yeni açıklama alanı
+            const stat = row.querySelector('.new-todo-status').value;
+            
+            // Desc alanını da objeye ekliyoruz
+            if(txt) todoItems.push({ text: txt, desc: desc, status: stat, priority: 'rahat' });
+        });
 
     const newProjectData = {
         name: document.getElementById('pName').value,
@@ -329,33 +503,30 @@ function renderProjects() {
             return isDoneA ? 1 : -1; // A bitmişse sona (1), değilse başa (-1)
         });
 
-        // 3. Sıralanmış listeyi HTML'e çevir (Ama işlem yaparken originalIndex kullan!)
-        let todoHtml = indexedTodos.map((t) => {
-            const i = t.originalIndex; // Veritabanındaki gerçek sırası
+        // 3. KART İÇİ LİSTE GÖRÜNÜMÜ (DÜZELTİLMİŞ HALİ)
+        let todoHtml = indexedTodos.slice(0, 4).map((t) => {
+            const i = t.originalIndex;
             const isDone = t.status === 'Bitti' || t.status === 'Gerek Kalmadı';
             
-            const priority = t.priority || 'rahat';
+            // Öncelik Rengi
             let priorityColor = 'var(--text-muted)';
-            if (priority === 'normal') priorityColor = 'var(--success)';
-            if (priority === 'acil') priorityColor = 'var(--danger)';
+            if (t.priority === 'normal') priorityColor = 'var(--success)';
+            if (t.priority === 'acil') priorityColor = 'var(--danger)';
 
-            let iconHtml = isDone 
-                ? `<i class="fa-solid fa-circle-check" style="color: var(--info); font-size:0.9rem;"></i>`
-                : `<i class="fa-solid fa-circle" onclick="window.openPriorityModal('${p.id}', ${i})" style="color: ${priorityColor}; font-size:0.7rem; cursor:pointer; transition:0.2s;" title="Öncelik Değiştir"></i>`;
-
-            return `<div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom:5px;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                    ${iconHtml}
-                    <span style="${isDone ? 'text-decoration:line-through; color:var(--text-muted);' : ''} ${t.status === 'Gerek Kalmadı' ? 'font-style:italic;' : ''}">${t.text}</span>
+            // DÜZELTME: Dropdown (Select) kaldırıldı, sadece ikon ve metin kaldı.
+            // Metin taşmasını önleyen CSS sınıfları (todo-row-layout vb.) eklendi.
+            return `
+            <div class="todo-row-layout" style="border:none; padding-bottom:0; margin-bottom:5px;">
+                <div class="todo-left-content">
+                    <i class="fa-solid fa-circle" style="color: ${isDone ? 'var(--info)' : priorityColor}; font-size:0.5rem; flex-shrink:0;"></i>
+                    <span class="todo-text-truncate" style="${isDone ? 'text-decoration:line-through; opacity:0.6;' : ''}" title="${t.text}">${t.text}</span>
                 </div>
-                <select onchange="window.updateTodo('${p.id}', ${i}, this.value)" style="width:auto; padding:2px 5px; margin:0; font-size:0.75rem; background:#111; border:none;">
-                    <option ${t.status=='Bekliyor'?'selected':''}>Bekliyor</option>
-                    <option ${t.status=='Yapılıyor'?'selected':''}>Yapılıyor</option>
-                    <option ${t.status=='Bitti'?'selected':''}>Bitti</option>
-                    <option ${t.status=='Gerek Kalmadı'?'selected':''}>Gerek Kalmadı</option>
-                </select>
             </div>`;
         }).join('');
+
+        if(indexedTodos.length > 4) {
+            todoHtml += `<div style="font-size:0.75rem; color:#666; margin-top:5px;">+ ${indexedTodos.length - 4} diğer görev...</div>`;
+        }
 
         let financeContent = '';
         if (p.isNonProfit) {
@@ -370,11 +541,23 @@ function renderProjects() {
                 <div><div class="p-title">${p.name}</div><div style="font-size:0.75rem; color:var(--text-muted);">${p.startDate} - ${p.completed ? p.realDate : p.endDate}</div></div>
                 <button onclick="window.toggleComplete('${p.id}')" style="border:none; background:none; cursor:pointer;"><span class="status-badge ${p.completed ? 'status-done' : 'status-active'}">${p.completed ? 'Tamamlandı' : 'Devam Ediyor'}</span></button>
             </div>
+            
             <div class="card-progress-container"><div class="card-progress-text"><span>İlerleme</span> <span>%${todoPercent}</span></div><div class="card-progress-bar-bg"><div class="card-progress-fill" style="width: ${todoPercent}%"></div></div></div>
+
             <div style="display:flex; gap:8px; flex-wrap:wrap;">${techHtml}</div>
+            
             <div class="p-finance ${p.isNonProfit ? 'p-finance-disabled' : ''}" style="position:relative; ${p.isNonProfit ? 'pointer-events:auto; opacity:1;' : ''}" onclick="${p.isNonProfit ? '' : `window.openFinanceModal('${p.id}')`}">${financeContent}</div>
+            
             ${durationHtml}
-            <div style="background:rgba(0,0,0,0.15); padding:15px; border-radius:16px;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><small style="color:var(--text-muted); font-weight:600;">YAPILACAKLAR</small><button onclick="window.addTodoItem('${p.id}')" style="background:none; border:none; color:var(--info); cursor:pointer; font-size:0.8rem; font-weight:bold;">+ Ekle</button></div><div style="max-height:150px; overflow-y:auto;">${p.todos && p.todos.length > 0 ? todoHtml : '<div style="text-align:center; font-size:0.8rem; color:#555;">Liste boş</div>'}</div></div>
+
+            <div class="card-todo-preview" onclick="window.openTodoDetailModal('${p.id}')" style="background:rgba(0,0,0,0.15); padding:15px; border-radius:16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <small style="color:var(--text-muted); font-weight:600;">YAPILACAKLAR <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.7rem;"></i></small>
+                </div>
+                <div style="min-height: 50px;">
+                    ${p.todos && p.todos.length > 0 ? todoHtml : '<div style="text-align:center; font-size:0.8rem; color:#555;">Liste boş</div>'}
+                </div>
+            </div>
             <div style="margin-top:auto; padding-top:10px; display:flex; justify-content:flex-end;"><button onclick="window.deleteProject('${p.id}')" style="color:var(--text-muted); background:none; border:none; cursor:pointer;"><i class="fa-solid fa-trash-can"></i> Sil</button></div>
         </div>`;
     }).join('');
