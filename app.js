@@ -72,18 +72,19 @@ window.openPriorityModal = (projectId, index) => {
     document.getElementById('priorityModal').classList.add('open');
 };
 
-// 3. Seçilen Önceliği Kaydetme
+// 3. Seçilen Önceliği Kaydetme 
 window.setPriority = async (priorityValue) => {
     if (!targetTodoProjectId || targetTodoIndex === null) return;
+    
+    // Modalı hemen kapat (Hız hissi için veritabanını beklemiyoruz)
+    window.closeModal('priorityModal');
 
     const p = projects.find(x => x.id === targetTodoProjectId);
     const newTodos = [...p.todos];
-    
     newTodos[targetTodoIndex].priority = priorityValue;
     
     await updateProjectInDb(targetTodoProjectId, { todos: newTodos });
     
-    window.closeModal('priorityModal');
     // Değişkenleri sıfırla
     targetTodoProjectId = null;
     targetTodoIndex = null;
@@ -317,8 +318,22 @@ function renderProjects() {
             }
         }
 
-        let todoHtml = (p.todos || []).map((t, i) => {
+        // 1. Önce listeyi orijinal indeksleriyle eşleştir
+        let indexedTodos = (p.todos || []).map((t, index) => ({ ...t, originalIndex: index }));
+
+        // 2. Sıralama: Bitmiş veya Gerek Kalmamış olanlar en sona
+        indexedTodos.sort((a, b) => {
+            const isDoneA = a.status === 'Bitti' || a.status === 'Gerek Kalmadı';
+            const isDoneB = b.status === 'Bitti' || b.status === 'Gerek Kalmadı';
+            if (isDoneA === isDoneB) return 0; // Durumları aynıysa sırayı bozma
+            return isDoneA ? 1 : -1; // A bitmişse sona (1), değilse başa (-1)
+        });
+
+        // 3. Sıralanmış listeyi HTML'e çevir (Ama işlem yaparken originalIndex kullan!)
+        let todoHtml = indexedTodos.map((t) => {
+            const i = t.originalIndex; // Veritabanındaki gerçek sırası
             const isDone = t.status === 'Bitti' || t.status === 'Gerek Kalmadı';
+            
             const priority = t.priority || 'rahat';
             let priorityColor = 'var(--text-muted)';
             if (priority === 'normal') priorityColor = 'var(--success)';
